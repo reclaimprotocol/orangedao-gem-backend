@@ -39,7 +39,7 @@ app.get("/user/:userId", (req: Request, res: Response, next) => {
     return
   }
 
-  const params = {
+  const params: AWS.DynamoDB.GetItemInput = {
     TableName: USERS_TABLE!,
     Key: {
       userId: {S: userId},
