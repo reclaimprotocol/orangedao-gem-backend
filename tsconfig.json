@@ -1,0 +1,22 @@
+{
+    "compilerOptions": {
+      "target": "es2018",
+      "module": "commonjs",
+      "allowJs": true,
+      "checkJs": false,
+      "outDir": ".build",
+      "strict": false,
+      "strictNullChecks": false,
+      "noImplicitThis": true,
+      "esModuleInterop": true,
+      "forceConsistentCasingInFileNames": true,
+      "declaration": false,
+      "resolveJsonModule": true,
+      "experimentalDecorators": true,
+      "emitDecoratorMetadata": true,
+      "lib": [ "ES2020", "DOM" ]
+    },
+    "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx"],
+    "exclude": ["node_modules"]
+  }
+  
