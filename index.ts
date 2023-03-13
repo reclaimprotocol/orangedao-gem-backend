@@ -13,14 +13,14 @@ app.use(bodyParser.json())
 const USERS_TABLE = process.env.USERS_TABLE;
 const callbackUrl = process.env.CALLBACK_URL;
 
-const dynamoDb = new AWS.DynamoDB.DocumentClient();
+const dynamoDb = new AWS.DynamoDB;
 
 const reclaim = new Reclaim(callbackUrl)
 const connection = reclaim.getConsent(
   'YC',
   [
     {
-      provider: 'YC',
+      provider: 'yc-login',
       params: { }
     }
   ]
@@ -42,18 +42,18 @@ app.get("/user/:userId", (req: Request, res: Response, next) => {
   const params = {
     TableName: USERS_TABLE!,
     Key: {
-      userId: userId,
+      userId: {S: userId},
     },
   };
 
-  dynamoDb.get(params, (error, result) => {
+  dynamoDb.getItem(params, (error, result) => {
     if (error) {
       res.status(400).json({ error: 'Could not get user' });
       return
     }
     if (result.Item) {
-      const { id, userAddress, templateLink, callbackId } = result.Item;
-      res.json({ id, userAddress, templateLink, callbackId });
+      const { userId, userAddress, templateLink, callbackId } = result.Item;
+      res.json({ userId, userAddress, templateLink, callbackId });
       return
     } else {
       res.status(404).json({ error: "User not found" });
@@ -77,20 +77,21 @@ app.post("/adduser/", async(req: Request<{}, {}, {userId: string, userAddress: s
   const template = (await connection).generateTemplate(callbackId);
   const templateUrl = template.url
 
-  const params = {
+  const params: AWS.DynamoDB.PutItemInput = {
     TableName: USERS_TABLE!,
+    ConditionExpression: "attribute_not_exists(userId)",
     Item: {
-      userId: userId,
-      userAddress: userAddress,
-      templateLink: templateUrl,
-      callbackId: callbackId,
-      status: "pending"
+      userId: {S: userId},
+      userAddress: {S: userAddress},
+      templateLink: {S: templateUrl},
+      callbackId: {S: callbackId},
+      status: {S: "pending"}
     },
   };
 
-  dynamoDb.put(params, (error) => {
+  dynamoDb.putItem(params, (error) => {
     if (error) {
-      res.status(400).json({ error: 'Could not create user' });
+      res.status(400).json({ error:  `Could not create user ${error}` });
       return
     }
     res.json({ userId, templateUrl });
@@ -99,31 +100,35 @@ app.post("/adduser/", async(req: Request<{}, {}, {userId: string, userAddress: s
 })
 
 app.post("/callback/:id", (req: Request<{}, {}, {userId: string, claim: string}>, res: Response, next) => {
-  // TODO: check for callbackId
 
   // TODO: verify the correctness of the proof
 
-  // TODO: update claim for user
+  // TODO: update claim for user if callbackId exists
 })
 
 app.get('/status/:callbackId', (req: Request, res: Response, next) => {
   const callbackId = req.params.callbackId;
 
-  const params = {
+  const params: AWS.DynamoDB.QueryInput = {
     TableName: USERS_TABLE!,
-    Key: {
-      callbackId: callbackId,
-    },
+    IndexName: "callbackId-index",
+    ExpressionAttributeValues: {
+      ":v_callbackId": {
+        S: callbackId
+       }
+     }, 
+    KeyConditionExpression: "callbackId = :v_callbackId",
+    ProjectionExpression: "status",
   };
 
-  dynamoDb.get(params, (error, result) => {
+  dynamoDb.query(params, (error, result) => {
     if (error) {
       res.status(400).json({ error: `Could not get status for callback id ${callbackId}` });
       return
     }
-    if (result.Item) {
-      const { status } = result.Item;
-      res.json({ callbackId, status });
+    if (result.Items) {
+      const { status } = result.Items[0];
+      res.json({ status });
       return
     } else {
       res.status(404).json({ error: `callbackId ${callbackId} not found` });
