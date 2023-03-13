@@ -3,6 +3,7 @@ import express, { Express, Request, Response } from 'express';
 import serverless from 'serverless-http';
 import AWS from 'aws-sdk';
 import bodyParser from 'body-parser'
+import {Reclaim, generateUuid} from 'template-client-sdk'
 
 const app: Express = express();
 
@@ -10,8 +11,20 @@ app.use(cors())
 app.use(bodyParser.json())
 
 const USERS_TABLE = process.env.USERS_TABLE;
+const callbackUrl = process.env.CALLBACK_URL;
 
 const dynamoDb = new AWS.DynamoDB.DocumentClient();
+
+const reclaim = new Reclaim(callbackUrl)
+const connection = reclaim.getConsent(
+  'YC',
+  [
+    {
+      provider: 'YC',
+      params: { }
+    }
+  ]
+)
 
 app.get("/", (req, res, next) => {
   return res.status(200).json({
@@ -49,7 +62,7 @@ app.get("/user/:userId", (req: Request, res: Response, next) => {
   });
 })
 
-app.post("/adduser/", (req: Request<{}, {}, {userId: string, userAddress: string}>, res: Response, next) => {
+app.post("/adduser/", async(req: Request<{}, {}, {userId: string, userAddress: string}>, res: Response, next) => {
   const { userId, userAddress } = req.body;
   if (typeof userId !== 'string') {
     res.status(400).json({ error: '"userId" must be a string' });
@@ -59,17 +72,18 @@ app.post("/adduser/", (req: Request<{}, {}, {userId: string, userAddress: string
     return
   }
 
-  // TODO: generate callbackId
+  const callbackId = `${userId}-${generateUuid()}`;
 
-  // TODO: create template link for user
- 
+  const template = (await connection).generateTemplate(callbackId);
+  const templateUrl = template.url
+
   const params = {
     TableName: USERS_TABLE!,
     Item: {
       userId: userId,
       userAddress: userAddress,
-      templateLink: "templateLink",
-      callbackId: "callbackId",
+      templateLink: templateUrl,
+      callbackId: callbackId,
       status: "pending"
     },
   };
@@ -79,7 +93,7 @@ app.post("/adduser/", (req: Request<{}, {}, {userId: string, userAddress: string
       res.status(400).json({ error: 'Could not create user' });
       return
     }
-    res.json({ message: `${userId} added` });
+    res.json({ userId, templateUrl });
     return
   });
 })
