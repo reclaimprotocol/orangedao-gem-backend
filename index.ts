@@ -17,7 +17,7 @@ const dynamoDb = new AWS.DynamoDB;
 
 const reclaim = new Reclaim(callbackUrl)
 const connection = reclaim.getConsent(
-  'YC',
+  'OrangeDAO-Gem',
   [
     {
       provider: 'yc-login',
@@ -32,17 +32,17 @@ app.get("/", (req, res, next) => {
   });
 });
 
-app.get("/user/:userId", (req: Request, res: Response, next) => {
-  const { userId } = req.params;
-  if (typeof userId !== 'string') {
-    res.status(400).json({ error: '"userId" must be a string' });
+app.get("/user/:userAddress", (req: Request, res: Response, next) => {
+  const { userAddress } = req.params;
+  if (typeof userAddress !== 'string') {
+    res.status(400).json({ error: '"userAddress" must be a string' });
     return
   }
 
   const params: AWS.DynamoDB.GetItemInput = {
     TableName: USERS_TABLE!,
     Key: {
-      userId: {S: userId},
+      userAddress: {S: userAddress},
     },
   };
 
@@ -52,8 +52,8 @@ app.get("/user/:userId", (req: Request, res: Response, next) => {
       return
     }
     if (result.Item) {
-      const { userId, userAddress, templateLink, callbackId } = result.Item;
-      res.json({ userId, userAddress, templateLink, callbackId });
+      const { userAddress, templateLink, callbackId } = result.Item;
+      res.json({ userAddress, templateLink, callbackId });
       return
     } else {
       res.status(404).json({ error: "User not found" });
@@ -62,30 +62,26 @@ app.get("/user/:userId", (req: Request, res: Response, next) => {
   });
 })
 
-app.post("/adduser/", async(req: Request<{}, {}, {userId: string, userAddress: string}>, res: Response, next) => {
-  const { userId, userAddress } = req.body;
-  if (typeof userId !== 'string') {
-    res.status(400).json({ error: '"userId" must be a string' });
-    return
-  } else if (typeof userAddress !== 'string') {
+app.post("/adduser/", async(req: Request<{}, {}, {userAddress: string}>, res: Response, next) => {
+  const { userAddress } = req.body;
+  if (typeof userAddress !== 'string') {
     res.status(400).json({ error: '"userAddress" must be a string' });
     return
   }
 
-  const callbackId = `${userId}-${generateUuid()}`;
+  const callbackId = `${userAddress}-${generateUuid()}`;
 
   const template = (await connection).generateTemplate(callbackId);
   const templateUrl = template.url
 
   const params: AWS.DynamoDB.PutItemInput = {
     TableName: USERS_TABLE!,
-    ConditionExpression: "attribute_not_exists(userId)",
+    ConditionExpression: "attribute_not_exists(userAddress)",
     Item: {
-      userId: {S: userId},
       userAddress: {S: userAddress},
       templateLink: {S: templateUrl},
       callbackId: {S: callbackId},
-      status: {S: "pending"}
+      claimStatus: {S: "pending"}
     },
   };
 
@@ -94,7 +90,7 @@ app.post("/adduser/", async(req: Request<{}, {}, {userId: string, userAddress: s
       res.status(400).json({ error:  `Could not create user ${error}` });
       return
     }
-    res.json({ userId, templateUrl });
+    res.json({ templateUrl });
     return
   });
 })
@@ -118,7 +114,7 @@ app.get('/status/:callbackId', (req: Request, res: Response, next) => {
        }
      }, 
     KeyConditionExpression: "callbackId = :v_callbackId",
-    ProjectionExpression: "status",
+    ProjectionExpression: "claimStatus",
   };
 
   dynamoDb.query(params, (error, result) => {
@@ -127,8 +123,8 @@ app.get('/status/:callbackId', (req: Request, res: Response, next) => {
       return
     }
     if (result.Items) {
-      const { status } = result.Items[0];
-      res.json({ status });
+      const { claimStatus } = result.Items[0];
+      res.json({ claimStatus });
       return
     } else {
       res.status(404).json({ error: `callbackId ${callbackId} not found` });
