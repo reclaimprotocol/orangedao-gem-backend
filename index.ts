@@ -3,7 +3,7 @@ import express, { Express, Request, Response } from 'express';
 import serverless from 'serverless-http';
 import AWS from 'aws-sdk';
 import bodyParser from 'body-parser'
-import { Reclaim } from '@reclaimprotocol/template-client-sdk'
+import { Reclaim } from '@reclaimprotocol/reclaim-sdk'
 import { Claim } from './utils/types';
 import { status } from './utils/constants';
 import P from 'pino'
