@@ -111,7 +111,82 @@ app.post("/callback/:userAddress", (req: Request, res: Response, next) => {
 
   // TODO: verify the correctness of the proof
 
-  // TODO: update claim for user if callbackId exists
+  const claimsBody = req.body
+  const { userAddress } = req.params
+
+  const claims = JSON.parse(decodeURIComponent(claimsBody)).claims
+
+  const paramKey = Object.keys(claims[0].parameters)[0]
+  logger.info(`[INFO] parameters: ${claims[0].parameters}`)
+  logger.info(`[INFO] paramKey: ${paramKey}`)
+  const userId = claims[0].parameters[paramKey]
+
+  logger.info(`[INFO] ${userAddress} is claiming ${userId}`)
+
+  const stringifiedClaim = JSON.stringify(claims[0])
+
+  const scanParams: AWS.DynamoDB.ScanInput = {
+    TableName: USERS_TABLE!,
+    ExpressionAttributeValues: {
+      ":v_userId": {
+        S: userId
+      }
+    },
+    ConsistentRead: true,
+    FilterExpression: "userId= :v_userId",
+    ProjectionExpression: "claimStatus",
+  };
+
+  const updateParams: AWS.DynamoDB.UpdateItemInput = {
+    TableName: USERS_TABLE!,
+    ConditionExpression: "attribute_not_exists(userId) AND userAddress = :v_userAddress",
+    Key: {
+      userAddress: { S: userAddress }
+    },
+    UpdateExpression: "SET userId=if_not_exists(userId,:u), claimString=:c, claimStatus=:s, claimUpdatedAt=:t",
+    ExpressionAttributeValues: {
+      ":v_userAddress": {
+        S: userAddress
+      },
+      ":u": {
+        S: userId
+      },
+      ":c": {
+        S: stringifiedClaim
+      },
+      ":s":{
+        S: status.CLAIMED
+      },
+      ":t": {
+        S: new Date().toISOString()
+      }
+    },
+  };
+
+  dynamoDb.scan(scanParams, (error, result) => {
+    if (error) {
+      logger.info(`[ERROR] Scanning for ${userId} failed with error ${error}`)
+      res.render('pages/fail', {message: "Scanning for user id failed"})
+      return
+    } else if (result.Items.length) {
+      logger.warn(`[WARN] ${userId} already claimed`)
+      res.render('pages/fail', {message: "This user id has already claimed the orange gem"})
+      return
+
+    } else {
+      dynamoDb.updateItem(updateParams, (error) => {
+        if (error) {
+          logger.error(`[ERROR] Could not update claim for ${userId} with error ${error}`)
+          res.render('pages/fail', {message: "Could not update claim"})
+          return
+        }
+        logger.info(`Claim for ${userId} updated`)
+        const redirectUrl = `${redirectBaseUrl}?callbackId=${userAddress}`
+        res.render('pages/success', {userAddress})
+        return
+      })
+    }
+  })
 })
 
 app.get('/status/:callbackId', (req: Request, res: Response, next) => {
