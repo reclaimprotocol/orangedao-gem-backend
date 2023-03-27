@@ -17,3 +17,7 @@ plugins:
   - serverless-plugin-typescript
   - serverless-dotenv-plugin
   - serverless-offline
+
+package:
+  include:
+    - views/**
