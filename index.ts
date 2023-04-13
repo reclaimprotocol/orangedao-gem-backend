@@ -26,7 +26,7 @@ const redirectBaseUrl = process.env.REDIRECT_BASE_URL;
 const dynamoDb = new AWS.DynamoDB;
 
 const reclaim = new Reclaim(callbackUrl)
-const connection = reclaim.getConsent(
+const connection = reclaim.connect(
   'OrangeDAO-Gem',
   [
     {

@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "",
   "dependencies": {
-    "@reclaimprotocol/reclaim-sdk": "^1.0.3",
+    "@reclaimprotocol/reclaim-sdk": "^1.0.7",
     "aws-sdk": "^2.1333.0",
     "cors": "^2.8.5",
     "ejs": "^3.1.6",
